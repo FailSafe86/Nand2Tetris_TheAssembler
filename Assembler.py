@@ -9,144 +9,148 @@ __author__ = 'tkorrison'
 
 # The Parser Module
 
-import sys
 import re
+import sys
 
 
-def main():
-    if len(sys.argv) != 3:
-        print ("Usage: Assembler.py infile outfile")
-        return
+class Parser(object):
+    def __init__(self, lines):
+        self.lines = lines
+        self.command = ''
 
-    while Parser(sys.argv[1], sys.argv[2]).advance():
+    def has_more_commands(self):
+        return len(self.lines) > 0
 
-        if Code.dest(Parser.dest()):
-            print()
-            f = open(sys.argv[2], 'w')
-            string = '111' + Parser.dest() + Parser.comp() + Parser.jump()
-            f.write(string)
+    def advance(self):
+        self.command = self.lines.pop(0)
 
-
-class Parser:
-    def __init__(self, sourcename, destname):
-        self.sourcename = sourcename
-        self.destname = destname
-        self.destfile = open(destname, 'w')
-
-    # Opens the input file/stream and gets ready to parse
-    def initializer(self):
-        sourcefile = open(self.sourcename, 'r')
-        line = sourcefile.readline()
-        return line
-
-    @staticmethod
-    def hasmorecommands():
-        if Parser.initializer > 0:
-            return True
+    def command_type(self):
+        if self.command[:2] == '//':
+            return 'comment'
+        if '//' in self.command:
+            self.command = self.command.split('//')[0].strip()
+        self.command = self.command.strip()
+        if self.command == '':
+            return 'empty line'
+        if self.command[0] == '@':
+            if self.command[1:].isdigit():
+                return 'A_COMMAND'
+        elif self.command[0] == '(' and self.command[-1] == ')':
+            return 'L_COMMAND'  # Loop
         else:
-            return False
+            return 'C_COMMAND'  # dest=comp;jump
 
-    @staticmethod
-    def advance():
-        if Parser.hasmorecommands:
-            return True
+    # SymbolTable Module
+    def symbol(self):
+        # call if commandType is A or L
+        if self.command_type() == 'A_COMMAND':
+            return self.command[1:]  # Xxx from @Xxx
+        elif self.command_type() == 'L_COMMAND':
+            return self.command[1:-1]  # Xxx from (Xxx)
 
-    @staticmethod
-    def commandtype():
-        string = str(Parser.initializer)
-        if re.findall(r'@', string):
-            return "A_COMMAND"
-        elif re.findall(r'=|;', string):
-            return "C_COMMAND"
-        else:
-            return "L_COMMAND"
+    def dest(self):
+        if self.command_type() == 'C_COMMAND':
+            if ';' in self.command and '=' in self.command:
+                return self.command.replace(';', ',').replace('=', ',').split(',')[0]
+            elif '=' in self.command:
+                return self.command.split('=')[0]
+            else:
+                return ''
 
-    @staticmethod
-    def dest():
+    def jump(self):
+        if self.command_type() == 'C_COMMAND':
+            if ';' in self.command and '=' in self.command:
+                return self.command.replace(';', ',').replace('=', ',').split(',')[2]
+            elif '=' in self.command:
+                return ''
+            else:
+                return self.command.split(';')[1]
 
-        if Parser.commandtype() == 'C_COMMAND':
-            string = Parser.initializer
-            s = str(string)
-            regex = compile(r'(\w+)\b=(\w+)\b;(\w+)$')
-            match = regex(s)
-            if match.group(1):
-                return match.group(1)
-
-    @staticmethod
-    def jump():
-        if Parser.commandtype() == 'C_COMMAND':
-            string = Parser.initializer
-            s = str(string)
-            regex = compile(r'(\w+)\b=(\w+)\b;(\w+)$')
-            match = regex(s)
-            if match.group(2):
-                return match.group(2)
-
-    @staticmethod
-    def comp():
-        if Parser.commandtype() == 'C_COMMAND':
-            string = Parser.initializer
-            s = str(string)
-            regex = compile(r'(\w+)\b=(\w+)\b;(\w+)$')
-            match = regex(s)
-            if match.group(3):
-                return match.group(3)
-
+    def comp(self):
+        if self.command_type() == 'C_COMMAND':
+            if ';' in self.command and '=' in self.command:
+                return self.command.replace(';', ',').replace('=', ',').split(',')[1]
+            elif '=' in self.command:
+                return self.command.split('=')[1]
+            else:
+                return self.command.split(';')[0]
 
 # The Code Module
-class Code:
+class Code(object):
     def __init__(self, mnemonic):
         self.mnemonic = mnemonic
 
-    @staticmethod
-    def dest(mnemonic):
-        if re.findall(r'AMD', mnemonic):
-            return "111"
-        elif re.findall(r'MD', mnemonic):
-            return "011"
-        elif re.findall(r'AM', mnemonic):
-            return "101"
-        elif re.findall(r'AD', mnemonic):
-            return "110"
-        elif re.findall(r'M', mnemonic):
-            return "001"
-        elif re.findall(r'D', mnemonic):
-            return "010"
-        elif re.findall(r'A', mnemonic):
-            return "100"
-        elif re.findall(r'""', mnemonic):
-            return "000"
-        else:
-            return "Not a valid dest value"
+    def dest(self):
+        translate = {'': '000',
+                     'M': '001',
+                     'D': '010',
+                     'MD': '011',
+                     'A': '100',
+                     'AM': '101',
+                     'AD': '110',
+                     'AMD': '111'}
+        return translate[self.mnemonic]
 
-    @staticmethod
-    def jump(mnemonic):
-        if re.findall(r'JMP', mnemonic):
-            return "111"
-        elif re.findall(r'JGE', mnemonic):
-            return "011"
-        elif re.findall(r'JNE', mnemonic):
-            return "101"
-        elif re.findall(r'JLE', mnemonic):
-            return "110"
-        elif re.findall(r'JGT', mnemonic):
-            return "001"
-        elif re.findall(r'JEQ', mnemonic):
-            return "010"
-        elif re.findall(r'JLT', mnemonic):
-            return "100"
-        elif re.findall(r'""', mnemonic):
-            return "000"
-        else:
-            return "Not a valid dest value"
+    def comp(self):
+        translate = {  # a=0
+                       '0': '0101010',
+                       '1': '0111111',
+                       '-1': '0111010',
+                       'D': '0001100',
+                       'A': '0110000',
+                       '!D': '0001101',
+                       '!A': '0110001',
+                       '-D': '0001111',
+                       '-A': '0110011',
+                       'D+1': '0011111',
+                       'A+1': '0110111',
+                       'D-1': '0001110',
+                       'A-1': '0110010',
+                       'D+A': '0000010',
+                       'D-A': '0010011',
+                       'A-D': '0000111',
+                       'D&A': '0000000',
+                       'D|A': '0010101',
+                       # a=1
+                       'M': '1110000',
+                       '!M': '1110001',
+                       '-M': '1110011',
+                       'M+1': '1110111',
+                       'M-1': '1110010',
+                       'D+M': '1000010',
+                       'D-M': '1010011',
+                       'M-D': '1000111',
+                       'D&M': '1000000',
+                       'D|M': '1010101'}
+        return translate[self.mnemonic]
 
-    @staticmethod
-    def comp(mnemonic):
-        if re.findall(r'0', mnemonic):
-            return "101010"
-        else:
-            return "Not a valid dest value"
+    def jump(self):
+        translate = {
+            '': '000',
+            'JGT': '001',
+            'JEQ': '010',
+            'JGE': '011',
+            'JLT': '100',
+            'JNE': '101',
+            'JLE': '110',
+            'JMP': '111'}
+        return translate[self.mnemonic]
 
-# SymbolTable Module
-# class SymbolTable(self, ):
-main()
+
+def main():
+    filename = sys.argv[1]
+    asm_file = open(filename)
+    lines = asm_file.readlines()
+    parser = Parser(lines)
+    f = open(filename.split('.')[0] + '.hack', 'w')
+
+    while parser.has_more_commands():
+        parser.advance()
+        if parser.command_type() == 'A_COMMAND' or parser.command_type() == 'L_COMMAND':
+            f.write('{0:0>16}'.format(str(bin(int(parser.symbol()))[2:])) + '\n')
+        elif parser.command_type() == 'C_COMMAND':
+            f.write('111' + Code(parser.comp()).comp() + Code(parser.dest()).dest() + Code(parser.jump()).jump())
+
+    f.close()
+if __name__ == "__main__":
+    main()
