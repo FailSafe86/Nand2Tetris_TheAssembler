@@ -7,12 +7,10 @@ __author__ = 'tkorrison'
 
 # The Assembler
 
-# The Parser Module
 
-import re
 import sys
 
-
+# The Parser Module
 class Parser(object):
     def __init__(self, lines):
         self.lines = lines
@@ -40,7 +38,6 @@ class Parser(object):
         else:
             return 'C_COMMAND'  # dest=comp;jump
 
-    # SymbolTable Module
     def symbol(self):
         # call if commandType is A or L
         if self.command_type() == 'A_COMMAND':
@@ -74,6 +71,7 @@ class Parser(object):
                 return self.command.split('=')[1]
             else:
                 return self.command.split(';')[0]
+
 
 # The Code Module
 class Code(object):
@@ -137,6 +135,25 @@ class Code(object):
         return translate[self.mnemonic]
 
 
+# The SymbolTable Module
+class SymbolTable(object):
+    def __init__(self):
+        self._symbols = {'SP': 0, 'LCL': 1, 'ARG': 2, 'THIS': 3, 'THAT': 4,
+                         'R0': 0, 'R1': 1, 'R2': 2, 'R3': 3, 'R4': 4, 'R5': 5, 'R6': 6, 'R7': 7,
+                         'R8': 8, 'R9': 9, 'R10': 10, 'R11': 11, 'R12': 12, 'R13': 13, 'R14': 14, 'R15': 15,
+                         'SCREEN': 0x4000, 'KBD': 0x6000}
+
+    def add_entry(self, symbol, address):
+        self._symbols[symbol] = address
+
+    def contains(self, symbol):
+        return symbol in self._symbols
+
+    def get_address(self, symbol):
+        return self._symbols[symbol]
+
+
+# Main Assembler Program
 def main():
     filename = sys.argv[1]
     asm_file = open(filename)
@@ -144,13 +161,26 @@ def main():
     parser = Parser(lines)
     f = open(filename.split('.')[0] + '.hack', 'w')
 
+    # first parse
+    cur_address = 0
+    while parser.has_more_commands():
+        parser.advance()
+        if parser.command_type() == 'A_COMMAND' or parser.command_type() == 'C_COMMAND':
+            cur_address += 1
+        elif parser.command_type() == 'L_COMMAND':
+            SymbolTable.add_entry(parser.symbol(), cur_address)
+
+    # second parse
     while parser.has_more_commands():
         parser.advance()
         if parser.command_type() == 'A_COMMAND' or parser.command_type() == 'L_COMMAND':
             f.write('{0:0>16}'.format(str(bin(int(parser.symbol()))[2:])) + '\n')
+
         elif parser.command_type() == 'C_COMMAND':
-            f.write('111' + Code(parser.comp()).comp() + Code(parser.dest()).dest() + Code(parser.jump()).jump())
+            f.write('111' + Code(parser.comp()).comp() + Code(parser.dest()).dest() + Code(parser.jump()).jump() + '\n')
 
     f.close()
+
+
 if __name__ == "__main__":
     main()
