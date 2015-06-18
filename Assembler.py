@@ -153,34 +153,71 @@ class SymbolTable(object):
         return self._symbols[symbol]
 
 
-# Main Assembler Program
-def main():
-    filename = sys.argv[1]
+
+# First parse
+def pass0(filename):
     asm_file = open(filename)
     lines = asm_file.readlines()
     parser = Parser(lines)
-    f = open(filename.split('.')[0] + '.hack', 'w')
-
-    # first parse
     cur_address = 0
     while parser.has_more_commands():
         parser.advance()
-        if parser.command_type() == 'A_COMMAND' or parser.command_type() == 'C_COMMAND':
+        cmd = parser.command_type()
+        if cmd == 'A_COMMAND' or cmd == 'C_COMMAND':
             cur_address += 1
-        elif parser.command_type() == 'L_COMMAND':
-            SymbolTable.add_entry(parser.symbol(), cur_address)
+        elif cmd == 'L_COMMAND':
+            SymbolTable().add_entry(symbol=parser.symbol(), address=cur_address)
 
-    # second parse
+
+# Second parse
+def pass1(infile, outfile):
+    asm_file = open(infile)
+    lines = asm_file.readlines()
+    parser = Parser(lines)
+    f = open(outfile.split('.')[0] + '.hack', 'w')
     while parser.has_more_commands():
         parser.advance()
-        if parser.command_type() == 'A_COMMAND' or parser.command_type() == 'L_COMMAND':
-            f.write('{0:0>16}'.format(str(bin(int(parser.symbol()))[2:])) + '\n')
-
-        elif parser.command_type() == 'C_COMMAND':
+        cmd = parser.command_type()
+        if cmd == 'A_COMMAND':
+            f.write('{0:0>16}'.format(str(bin(int(_get_address(parser.symbol())))[2:])) + '\n')
+        elif cmd == 'C_COMMAND':
             f.write('111' + Code(parser.comp()).comp() + Code(parser.dest()).dest() + Code(parser.jump()).jump() + '\n')
-
+        elif cmd == 'L_COMMAND':
+            pass
     f.close()
 
+
+def _get_address(symbol):
+    symbol_address = 16
+    if symbol.isdigit():
+        return symbol
+    else:
+        if not SymbolTable.contains(symbol):
+            SymbolTable.add_entry(symbol, symbol_address)
+            symbol_address += 1
+        return SymbolTable.get_address(symbol)
+
+
+# Drive the assembly process
+def assemble(filein):
+    pass0(filein)
+    pass1(filein, _outfile(filein))
+
+
+def _outfile(infile):
+    if infile.endswith('.asm'):
+        return infile.replace('.asm', '.hack')
+    else:
+        return infile + '.hack'
+
+
+# Main Assembler Program
+def main():
+    if len(sys.argv) != 2:
+        print "Usage: Assembler file.asm"
+    else:
+        infile = sys.argv[1]
+        assemble(infile)
 
 if __name__ == "__main__":
     main()
